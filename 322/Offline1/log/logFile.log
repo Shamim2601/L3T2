@@ -1,0 +1,56 @@
+HTTP request : GET / HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:20:34 BDT 2023
+Content-Type: text/html
+Content-Length: 366
+
+
+HTTP request : GET /favicon.ico HTTP/1.1
+HTTP response: 
+HTTP request : GET /root/dir1 HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:20:36 BDT 2023
+Content-Type: text/html
+Content-Length: 459
+
+
+HTTP request : GET / HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:21:18 BDT 2023
+Content-Type: text/html
+Content-Length: 426
+
+
+HTTP request : GET /root/uploaded HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:21:20 BDT 2023
+Content-Type: text/html
+Content-Length: 252
+
+
+HTTP request : GET /root/uploaded HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:21:26 BDT 2023
+Content-Type: text/html
+Content-Length: 252
+
+
+HTTP request : GET /root/uploaded/up.txt HTTP/1.1
+HTTP response: 
+HTTP/1.1 200 OK
+Server: Java HTTP Server: 1.0
+Date: Mon Jan 09 15:21:27 BDT 2023
+Content-Type: text/html
+Content-Length: 123
+
+
