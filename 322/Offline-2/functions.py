@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-def myFunctionFlow(file,choice):
+def myFunctionFlow(file):
     Y_output = {}
     received_packets = 0
     sent_packets = 0
@@ -18,6 +18,9 @@ def myFunctionFlow(file,choice):
         words = line.split()
         event = words[0]
         time_sec = float(words[1])
+        if event == "M":
+            continue
+        
         node = words[2].replace('_', '')
         layer = words[3]
         packet_id = words[5]
@@ -60,16 +63,11 @@ def myFunctionFlow(file,choice):
     print("Delivery ratio   :{} ".format((received_packets / sent_packets)))
     print("Drop ratio       :{} ".format((dropped_packets / sent_packets)))
 
-    if choice==0:
-        Y_output['throughput'] = (received_bytes * 8) / simulation_time
-        Y_output['avgDelay'] = total_delay / received_packets
-        Y_output['deliveryRatio'] = received_packets / sent_packets
-        Y_output['dropRatio']= dropped_packets / sent_packets
-    elif choice==1:
-        Y_output['throughput'] = (received_bytes * 8) / simulation_time
-        Y_output['avgDelay'] = total_delay / received_packets
-        Y_output['deliveryRatio'] = received_packets / sent_packets
-        Y_output['dropRatio']= dropped_packets / sent_packets
+    Y_output['throughput'] = (received_bytes * 8) / simulation_time
+    Y_output['avgDelay'] = total_delay / received_packets
+    Y_output['deliveryRatio'] = received_packets / sent_packets
+    Y_output['dropRatio']= dropped_packets / sent_packets
+
     return Y_output
 
 

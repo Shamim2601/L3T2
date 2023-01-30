@@ -14,57 +14,30 @@ set val(ifqlen)       50                       ;# max packet in ifq
 set val(netif)        Phy/WirelessPhy          ;# network interface type
 set val(mac)          Mac/802_11               ;# MAC type
 set val(rp)           AODV                     ;# ad-hoc routing protocol 
-set val(nn)           40                       ;# number of mobilenodes 20,40,60,80,100
-set val(motherSource) 0                        ;# fixed Source
-set val(gridX)        1250                    ;#250,500,750,1000,1250
-set val(gridY)        1250
-set val(colNo)          6
-set val(rowNo)       [expr int(ceil(double($val(nn))/double($val(colNo))))]
+set val(commonSink)   0                        ;# fixed Sink
+set val(gridX)        [lindex $argv 0]         ;# area  250, 500* ,750,1000,1250
+set val(nn)           [lindex $argv 1]         ;# nodes 20,  40*  ,60,80,100
+set val(flow)         [lindex $argv 2]         ;# flow  10,  20*  ,30,40,50
+set val(gridY)        $val(gridX)
+set val(colNo)        6
+set val(rowNo)        [expr int(ceil(double($val(nn))/double($val(colNo))))]
 
-# =======================================================================
-set val(flow)        10                        ;#10,20,30,40,50
 # trace file
-set trace_file [open Output/1250_40_10.tr w]
+set trace_file [open Output/$val(gridX)_$val(nn)_$val(flow).tr w]
 $ns trace-all $trace_file
 
 # nam file
-set nam_file [open Output/1250_40_10.nam w]
+set nam_file [open Output/$val(gridX)_$val(nn)_$val(flow).nam w]
 $ns namtrace-all-wireless $nam_file $val(gridX) $val(gridY)
 
-# topology: to keep track of node movements
+# topology
 set topo [new Topography]
-$topo load_flatgrid $val(gridX) $val(gridY) ;# 500m x 500m area
-
+$topo load_flatgrid $val(gridX) $val(gridY) 
 
 # general operation director for mobilenodes
 create-god $val(nn)
 
-
 # node configs
-# ======================================================================
-
-# $ns node-config -addressingType flat or hierarchical or expanded
-#                  -adhocRouting   DSDV or DSR or TORA
-#                  -llType	   LL
-#                  -macType	   Mac/802_11
-#                  -propType	   "Propagation/TwoRayGround"
-#                  -ifqType	   "Queue/DropTail/PriQueue"
-#                  -ifqLen	   50
-#                  -phyType	   "Phy/WirelessPhy"
-#                  -antType	   "Antenna/OmniAntenna"
-#                  -channelType    "Channel/WirelessChannel"
-#                  -topoInstance   $topo
-#                  -energyModel    "EnergyModel"
-#                  -initialEnergy  (in Joules)
-#                  -rxPower        (in W)
-#                  -txPower        (in W)
-#                  -agentTrace     ON or OFF
-#                  -routerTrace    ON or OFF
-#                  -macTrace       ON or OFF
-#                  -movementTrace  ON or OFF
-
-# ======================================================================
-
 $ns node-config -adhocRouting $val(rp) \
                 -llType $val(ll) \
                 -macType $val(mac) \
@@ -80,49 +53,41 @@ $ns node-config -adhocRouting $val(rp) \
                 -macTrace OFF \
                 -movementTrace OFF
 
-# # create nodes
-# for {set i 0} {$i < $val(nn) } {incr i} {
-#     set node($i) [$ns node]
-#     $node($i) random-motion 0       ;# disable random motion
-
-#     $node($i) set X_ [expr (500 * $i) / $val(nn)]
-#     $node($i) set Y_ [expr (500 * $i) / $val(nn)]
-#     $node($i) set Z_ 0
-
-#     $ns initial_node_pos $node($i) 20
-# } 
-set currentNodeNo 0
-# create nodes in Grid
+set currentNode 0
+# random node positioning
 for {set i 0} {$i < $val(rowNo) } {incr i} {
     for {set col 0} {$col < $val(colNo)} {incr col} {
         
-        if { $currentNodeNo >= $val(nn) } {
+        if { $currentNode >= $val(nn) } {
             break
         }
-        set node($currentNodeNo) [$ns node]
-        $node($currentNodeNo) random-motion 0       ;# disable random motion
+        set node($currentNode) [$ns node]
+        $node($currentNode) random-motion 0       
 
-        $node($currentNodeNo) set X_ [expr ($val(gridX) / $val(colNo)) + ($col*100)]
-        $node($currentNodeNo) set Y_ [expr ($val(gridY) / $val(rowNo)) + ($i*100)]
-        $node($currentNodeNo) set Z_ 0
+        $node($currentNode) set X_ [expr int(rand() * $val(gridX)) + 0.5]
+        $node($currentNode) set Y_ [expr int(rand() * $val(gridY)) + 0.5]
+        $node($currentNode) set Z_ 0
 
-        $ns initial_node_pos $node($currentNodeNo) 20  ;#node size
-        incr currentNodeNo   
+        $ns initial_node_pos $node($currentNode) 10  ;#node size
+
+        incr currentNode   
     }
 } 
 
-
+# producing node movements with uniform random speed
+for {set i 0} {$i < $val(nn)} {incr i} {
+    $ns at [expr int(20 * rand()) + 2] "$node($i) setdest [expr int(10000 * rand()) % $val(gridX) + 0.5] [expr int(10000 * rand()) % $val(gridY) + 0.5] [expr int(100 * rand()) % 5 + 1]"
+}
 
 # Traffic
-set val(nf)         $val(flow)                ;# number of flows // Change kora lagbe
+set val(nf)         $val(flow)                
 
 for {set i 0} {$i < $val(nf)} {incr i} {
-    set src $val(motherSource) 
-    #set dest [expr $i + 10]
-    set dest [expr int($val(nn)*rand())] ;# Random Destination
-    while {$dest==$val(motherSource) } {
-        #source itself cant be a destination
-        set dest [expr int($val(nn)*rand())] ;# Random Destination
+    set src   [expr int($val(nn)*rand())] ;# Random source
+    set dest  $val(commonSink)
+    while {$src==$val(commonSink) } {
+        #source itself cant be destination
+        set src [expr int($val(nn)*rand())] ;# Random Source
     } 
 
     # Traffic config
@@ -143,7 +108,7 @@ for {set i 0} {$i < $val(nf)} {incr i} {
     $ftp attach-agent $tcp
     
     # start traffic generation
-    $ns at 1.0 "$ftp start"
+    $ns at [expr int(9 * rand()) + 1] "$ftp start"
 }
 
 
@@ -152,10 +117,9 @@ for {set i 0} {$i < $val(nf)} {incr i} {
 
 # Stop nodes
 for {set i 0} {$i < $val(nn)} {incr i} {
-    $ns at 50.0 "$node($i) reset"
+    $ns at 50.0000 "$node($i) reset"
 }
 
-# call final function
 proc finish {} {
     global ns trace_file nam_file
     $ns flush-trace
@@ -165,7 +129,7 @@ proc finish {} {
 
 proc halt_simulation {} {
     global ns
-    puts "Simulation ending"
+    puts "Ending Simulation"
     $ns halt
 }
 
@@ -176,6 +140,6 @@ $ns at 50.0002 "halt_simulation"
 
 
 # Run simulation
-puts "Simulation starting"
+puts "Starting Simulation"
 $ns run
 
