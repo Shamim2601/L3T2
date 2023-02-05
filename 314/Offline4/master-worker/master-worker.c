@@ -8,8 +8,8 @@
 #include <pthread.h>
 
 pthread_mutex_t lock;
-pthread_cond_t  *cond_master;
-pthread_cond_t  *cond_worker;
+pthread_cond_t  *cond_buffer;
+//pthread_cond_t  *cond_worker;
 
 int item_to_produce, item_to_consume, curr_buf_size, curr_consume_size;
 int total_items, max_buf_size, num_workers, num_masters;
@@ -42,13 +42,13 @@ void *generate_requests_loop(void *data)
 	      break;
       }
  
-      while(item_to_produce!=thread_id)
-        pthread_cond_wait(&cond_master[thread_id], &lock);
+      // while(item_to_produce!=thread_id)
+      //   pthread_cond_wait(&cond_buffer[thread_id], &lock);
 
       buffer[curr_buf_size++] = item_to_produce;
       print_produced(item_to_produce, thread_id);
       item_to_produce++;
-      pthread_cond_signal(&cond_master[item_to_produce]);
+      pthread_cond_signal(&cond_buffer[item_to_produce]);
       pthread_mutex_unlock(&lock);
     }
   return 0;
@@ -68,13 +68,13 @@ void *consume_items_loop(void *data)
 	      break;
       }
  
-      while(item_to_consume!=thread_id)
-        pthread_cond_wait(&cond_worker[thread_id], &lock);
+      // while(item_to_consume!=thread_id)
+      //   pthread_cond_wait(&cond_buffer[thread_id], &lock);
 
       int item_consumed = buffer[curr_consume_size++];
       print_consumed(item_consumed, thread_id);
       item_to_consume++;
-      pthread_cond_signal(&cond_worker[item_to_consume]);
+      pthread_cond_signal(&cond_buffer[item_to_consume]);
       pthread_mutex_unlock(&lock);
     }
   return 0;
@@ -106,15 +106,16 @@ int main(int argc, char *argv[])
   pthread_mutex_init(&lock,NULL); 
 
   buffer = (int *)malloc (sizeof(int) * max_buf_size);
+  cond_buffer = malloc(sizeof(pthread_cond_t) * max_buf_size);
+  for (i = 0; i < max_buf_size; i++)
+  {
+    pthread_cond_init(&cond_buffer[i], NULL);
+  }
 
   //create master producer threads
   master_thread_id = (int *)malloc(sizeof(int) * num_masters);
   master_thread = (pthread_t *)malloc(sizeof(pthread_t) * num_masters);
-  cond_master = malloc(sizeof(pthread_cond_t) * num_masters);
-  for (i = 0; i < num_masters; i++)
-  {
-    pthread_cond_init(&cond_master[i], NULL);
-  }
+  
 
   for (i = 0; i < num_masters; i++)
   {
@@ -128,11 +129,6 @@ int main(int argc, char *argv[])
   //create worker consumer threads
   worker_thread_id = (int *)malloc(sizeof(int) * num_workers);
   worker_thread = (pthread_t *)malloc(sizeof(pthread_t) * num_workers);
-  cond_worker = malloc(sizeof(pthread_cond_t) * num_workers);
-  for (i = 0; i < num_workers; i++)
-  {
-    pthread_cond_init(&cond_worker[i], NULL);
-  }
 
   for (i = 0; i < num_workers; i++)
   {
