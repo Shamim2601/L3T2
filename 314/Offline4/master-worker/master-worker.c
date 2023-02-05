@@ -45,6 +45,7 @@ void *generate_requests_loop(void *data)
       // while(item_to_produce!=thread_id)
       //   pthread_cond_wait(&cond_buffer[thread_id], &lock);
 
+      pthread_cond_wait(&cond_buffer[curr_buf_size], &lock);
       buffer[curr_buf_size++] = item_to_produce;
       print_produced(item_to_produce, thread_id);
       item_to_produce++;
@@ -71,6 +72,7 @@ void *consume_items_loop(void *data)
       // while(item_to_consume!=thread_id)
       //   pthread_cond_wait(&cond_buffer[thread_id], &lock);
 
+      pthread_cond_wait(&cond_buffer[curr_consume_size], &lock);
       int item_consumed = buffer[curr_consume_size++];
       print_consumed(item_consumed, thread_id);
       item_to_consume++;
