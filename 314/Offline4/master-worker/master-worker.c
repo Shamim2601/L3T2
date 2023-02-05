@@ -42,7 +42,9 @@ void *generate_requests_loop(void *data)
 	      break;
       }
  
-      pthread_cond_wait(&cond_master[thread_id], &lock);
+      while(item_to_produce!=thread_id)
+        pthread_cond_wait(&cond_master[thread_id], &lock);
+
       buffer[curr_buf_size++] = item_to_produce;
       print_produced(item_to_produce, thread_id);
       item_to_produce++;
@@ -66,9 +68,11 @@ void *consume_items_loop(void *data)
 	      break;
       }
  
-      pthread_cond_wait(&cond_worker[thread_id], &lock);
-      buffer[curr_consume_size++] = 0;
-      print_consumed(item_to_consume, thread_id);
+      while(item_to_consume!=thread_id)
+        pthread_cond_wait(&cond_worker[thread_id], &lock);
+
+      int item_consumed = buffer[curr_consume_size++];
+      print_consumed(item_consumed, thread_id);
       item_to_consume++;
       pthread_cond_signal(&cond_worker[item_to_consume]);
       pthread_mutex_unlock(&lock);
@@ -109,8 +113,12 @@ int main(int argc, char *argv[])
   cond_master = malloc(sizeof(pthread_cond_t) * num_masters);
   for (i = 0; i < num_masters; i++)
   {
-    master_thread_id[i] = i;
     pthread_cond_init(&cond_master[i], NULL);
+  }
+
+  for (i = 0; i < num_masters; i++)
+  {
+    master_thread_id[i] = i;
   }
     
 
@@ -123,8 +131,12 @@ int main(int argc, char *argv[])
   cond_worker = malloc(sizeof(pthread_cond_t) * num_workers);
   for (i = 0; i < num_workers; i++)
   {
-    worker_thread_id[i] = i;
     pthread_cond_init(&cond_worker[i], NULL);
+  }
+
+  for (i = 0; i < num_workers; i++)
+  {
+    worker_thread_id[i] = i;
   }
    
 
@@ -135,6 +147,14 @@ int main(int argc, char *argv[])
   for (i = 0; i < num_masters; i++)
   {
     pthread_join(master_thread[i], NULL);
+    //printf("master %d joined\n", i);
+    //pthread_join(worker_thread[i], NULL);
+    //printf("worker %d joined\n", i);
+  }
+
+  for (i = 0; i < num_workers; i++)
+  {
+    //pthread_join(master_thread[i], NULL);
     //printf("master %d joined\n", i);
     pthread_join(worker_thread[i], NULL);
     //printf("worker %d joined\n", i);
