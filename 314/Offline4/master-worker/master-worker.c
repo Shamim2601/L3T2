@@ -10,6 +10,7 @@
 pthread_mutex_t lock;
 //pthread_cond_t  *cond_master;
 //pthread_cond_t  *cond_worker;
+pthread_cond_t empty, full;
 
 
 int item_to_produce, item_to_consume, curr_buf_size;
@@ -52,6 +53,7 @@ void *generate_requests_loop(void *data)
       item_to_produce++;
 
       //pthread_cond_signal(&cond_master[item_to_produce]);
+      pthread_cond_signal(&full);
       pthread_mutex_unlock(&lock);
     }
   return 0;
@@ -72,6 +74,10 @@ void *consume_items_loop(void *data)
       }
  
       pthread_mutex_lock(&lock);
+
+      while (curr_buf_size == 0) // check if the buffer is empty
+        pthread_cond_wait(&full, &lock);
+
       // while(item_to_consume!=thread_id)
       //   pthread_cond_wait(&cond_worker[thread_id], &lock);
 
@@ -112,6 +118,7 @@ int main(int argc, char *argv[])
   buffer = (int *)malloc (sizeof(int) * max_buf_size);
 
   //create master producer threads
+
   master_thread_id = (int *)malloc(sizeof(int) * num_masters);
   master_thread = (pthread_t *)malloc(sizeof(pthread_t) * num_masters);
   // cond_master = malloc(sizeof(pthread_cond_t) * num_masters);
@@ -128,6 +135,7 @@ int main(int argc, char *argv[])
     pthread_create(&master_thread[i], NULL, generate_requests_loop, (void *)&master_thread_id[i]);
 
   //create worker consumer threads
+
   worker_thread_id = (int *)malloc(sizeof(int) * num_workers);
   worker_thread = (pthread_t *)malloc(sizeof(pthread_t) * num_workers);
   // cond_worker = malloc(sizeof(pthread_cond_t) * num_workers);
