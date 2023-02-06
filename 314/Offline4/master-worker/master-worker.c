@@ -6,13 +6,10 @@
 #include <signal.h>
 #include <wait.h>
 #include <pthread.h>
-#include <semaphore.h>
 
 pthread_mutex_t lock;
 //pthread_cond_t  *cond_master;
 //pthread_cond_t  *cond_worker;
-sem_t semEmpty;
-sem_t semFull;
 
 
 int item_to_produce, item_to_consume, curr_buf_size;
@@ -46,7 +43,6 @@ void *generate_requests_loop(void *data)
 	      break;
       }
 
-      sem_wait(&semEmpty);
       pthread_mutex_lock(&lock);
       // while(item_to_produce!=thread_id)
       //   pthread_cond_wait(&cond_master[thread_id], &lock);
@@ -57,7 +53,6 @@ void *generate_requests_loop(void *data)
 
       //pthread_cond_signal(&cond_master[item_to_produce]);
       pthread_mutex_unlock(&lock);
-      sem_post(&semFull);
     }
   return 0;
 }
@@ -76,7 +71,6 @@ void *consume_items_loop(void *data)
 	      break;
       }
  
-      sem_wait(&semFull);
       pthread_mutex_lock(&lock);
       // while(item_to_consume!=thread_id)
       //   pthread_cond_wait(&cond_worker[thread_id], &lock);
@@ -87,7 +81,6 @@ void *consume_items_loop(void *data)
       
       //pthread_cond_signal(&cond_worker[item_to_consume]);
       pthread_mutex_unlock(&lock);
-      sem_post(&semEmpty);
     }
   return 0;
 }
@@ -115,8 +108,6 @@ int main(int argc, char *argv[])
   }
 
   pthread_mutex_init(&lock,NULL); 
-  sem_init(&semEmpty, 0, total_items);
-  sem_init(&semFull, 0, 0);
 
   buffer = (int *)malloc (sizeof(int) * max_buf_size);
 
@@ -172,8 +163,6 @@ int main(int argc, char *argv[])
   free(worker_thread_id);
   free(worker_thread);
   
-  sem_destroy(&semEmpty);
-  sem_destroy(&semFull);
   pthread_mutex_destroy(&lock);
   return 0;
 }
