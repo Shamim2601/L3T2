@@ -17,10 +17,10 @@ def myFunctionFlow(file):
         count = 1
         words = line.split()
         event = words[0]
-        time_sec = float(words[1])
-        if event == "M":
+        if event == "M" or event == "N":
             continue
-        
+            
+        time_sec = float(words[1])
         node = words[2].replace('_', '')
         layer = words[3]
         packet_id = words[5]

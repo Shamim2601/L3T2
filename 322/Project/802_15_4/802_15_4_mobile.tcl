@@ -40,6 +40,16 @@ $topo load_flatgrid $val(area_size) $val(area_size)
 # general operation director for mobilenodes
 create-god $val(nn)
 
+# EnergyModel
+set val(energymodel_15) EnergyModel ;
+set val(initialenergy_15) 3.0 ;# Initial energy in Joules
+
+set val(idlepower_15) 0.45 ;#LEAP (802.11g)
+set val(rxpower_15) 0.9 ;#LEAP (802.11g)
+set val(txpower_15) 0.5 ;#LEAP (802.11g)
+set val(sleeppower_15) 0.05 ;#LEAP (802.11g)
+
+
 # node configs
 $ns node-config -adhocRouting $val(rp) \
                 -llType $val(ll) \
@@ -51,9 +61,15 @@ $ns node-config -adhocRouting $val(rp) \
                 -phyType $val(netif) \
                 -topoInstance $topo \
                 -channelType $val(chan) \
+                -energyModel $val(energymodel_15) \
+		-idlePower $val(idlepower_15) \
+		-rxPower $val(rxpower_15) \
+		-txPower $val(txpower_15) \
+		-sleepPower $val(sleeppower_15) \
+		-initialEnergy $val(initialenergy_15)\
                 -agentTrace ON \
-                -routerTrace ON \
-                -macTrace OFF \
+                -routerTrace OFF \
+                -macTrace ON \
                 -movementTrace OFF
 
 set currentNode 0
