@@ -7,6 +7,7 @@ def myFunctionFlow(file):
     dropped_packets = 0
     total_delay = 0
     received_bytes = 0
+    total_energy_consumption = 0;
 
     start_time = 1000000
     end_time = 0
@@ -26,6 +27,14 @@ def myFunctionFlow(file):
         packet_id = words[5]
         packet_type = words[6]
         packet_bytes = int(words[7])
+        
+        idle_energy_consumption = float(words[15])
+        sleep_energy_consumption = float(words[17])
+        transmit_energy_consumption = float(words[19])
+        receive_energy_consumption = float(words[21].replace(']',''))
+        
+        total_energy_consumption = total_energy_consumption+idle_energy_consumption+sleep_energy_consumption
+        total_energy_consumption = total_energy_consumption+transmit_energy_consumption+receive_energy_consumption
 
         # set start time for the first line
         if start_time > time_sec:
@@ -62,11 +71,13 @@ def myFunctionFlow(file):
     print("Average Delay    :{} seconds".format((total_delay / received_packets)))
     print("Delivery ratio   :{} ".format((received_packets / sent_packets)))
     print("Drop ratio       :{} ".format((dropped_packets / sent_packets)))
+    print("Energy consumption       :{} ".format((total_energy_consumption)))
 
     Y_output['throughput'] = (received_bytes * 8) / simulation_time
     Y_output['avgDelay'] = total_delay / received_packets
     Y_output['deliveryRatio'] = received_packets / sent_packets
     Y_output['dropRatio']= dropped_packets / sent_packets
+    Y_output['energy']= total_energy_consumption
 
     return Y_output
 

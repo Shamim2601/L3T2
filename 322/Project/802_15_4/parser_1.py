@@ -23,30 +23,35 @@ Y_output_node = {
     'avgDelay': [],
     'deliveryRatio': [],
     'dropRatio': [],
+    'energy': [],
 }
 Y_output_flow = {
     'throughput': [],
     'avgDelay': [],
     'deliveryRatio': [],
     'dropRatio': [],
+    'energy': [],
 }
 Y_output_packet = {
     'throughput': [],
     'avgDelay': [],
     'deliveryRatio': [],
     'dropRatio': [],
+    'energy': [],
 }
 Y_output_speed = {
     'throughput': [],
     'avgDelay': [],
     'deliveryRatio': [],
     'dropRatio': [],
+    'energy': [],
 }
 Y_output_inp = {
     'throughput': [],
     'avgDelay': [],
     'deliveryRatio': [],
     'dropRatio': [],
+    'energy': [],
 }
 
 
@@ -88,6 +93,7 @@ if manual is True:
         Y_output_inp['avgDelay'].append(temp_List['avgDelay'])
         Y_output_inp['deliveryRatio'].append(temp_List['deliveryRatio'])
         Y_output_inp['dropRatio'].append(temp_List['dropRatio'])
+        Y_output_inp['energy'].append(temp_List['energy'])
 
         print("-------------------------------------\n")
         i = i+1
@@ -104,6 +110,7 @@ else:
         Y_output_node['avgDelay'].append(temp_List['avgDelay'])
         Y_output_node['deliveryRatio'].append(temp_List['deliveryRatio'])
         Y_output_node['dropRatio'].append(temp_List['dropRatio'])
+        Y_output_node['energy'].append(temp_List['energy'])
 
         print("-------------------------------------\n")
         i = i+1
@@ -120,6 +127,7 @@ else:
         Y_output_flow['avgDelay'].append(temp_List['avgDelay'])
         Y_output_flow['deliveryRatio'].append(temp_List['deliveryRatio'])
         Y_output_flow['dropRatio'].append(temp_List['dropRatio'])
+        Y_output_flow['energy'].append(temp_List['energy'])
 
         print("-------------------------------------\n")
         i = i+1
@@ -136,6 +144,7 @@ else:
         Y_output_packet['avgDelay'].append(temp_List['avgDelay'])
         Y_output_packet['deliveryRatio'].append(temp_List['deliveryRatio'])
         Y_output_packet['dropRatio'].append(temp_List['dropRatio'])
+        Y_output_packet['energy'].append(temp_List['energy'])
 
         print("-------------------------------------\n")
         i = i+1
@@ -152,6 +161,7 @@ else:
         Y_output_speed['avgDelay'].append(temp_List['avgDelay'])
         Y_output_speed['deliveryRatio'].append(temp_List['deliveryRatio'])
         Y_output_speed['dropRatio'].append(temp_List['dropRatio'])
+        Y_output_speed['energy'].append(temp_List['energy'])
 
         print("-------------------------------------\n")
         i = i+1
@@ -160,7 +170,7 @@ else:
     
 
     
-    y_Attributes=['throughput','avgDelay','deliveryRatio','dropRatio']
+    y_Attributes=['throughput','avgDelay','deliveryRatio','dropRatio','energy']
     
     for y_attribute in y_Attributes:
         plotGraph(X_input['node'], Y_output_node[y_attribute],
