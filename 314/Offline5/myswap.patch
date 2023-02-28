@@ -1,0 +1,415 @@
+diff --git a/Makefile b/Makefile
+index 39a99d7..5cfde21 100644
+--- a/Makefile
++++ b/Makefile
+@@ -24,6 +24,7 @@ OBJS = \
+   $K/sleeplock.o \
+   $K/file.o \
+   $K/pipe.o \
++  $K/swap.o \
+   $K/exec.o \
+   $K/sysfile.o \
+   $K/kernelvec.o \
+@@ -132,6 +133,7 @@ UPROGS=\
+ 	$U/_grind\
+ 	$U/_wc\
+ 	$U/_zombie\
++	$U/_testswap\
+ 
+ fs.img: mkfs/mkfs README $(UPROGS)
+ 	mkfs/mkfs fs.img README $(UPROGS)
+diff --git a/kernel/defs.h b/kernel/defs.h
+index a3c962b..289baa8 100644
+--- a/kernel/defs.h
++++ b/kernel/defs.h
+@@ -8,6 +8,7 @@ struct spinlock;
+ struct sleeplock;
+ struct stat;
+ struct superblock;
++struct swap;
+ 
+ // bio.c
+ void            binit(void);
+@@ -36,6 +37,8 @@ int             filewrite(struct file*, uint64, int n);
+ 
+ // fs.c
+ void            fsinit(int);
++uint            balloc(uint dev);
++void            bfree(int dev, uint b);
+ int             dirlink(struct inode*, char*, uint);
+ struct inode*   dirlookup(struct inode*, char*, uint*);
+ struct inode*   ialloc(uint, short);
+@@ -106,6 +109,14 @@ void            yield(void);
+ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
+ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
+ void            procdump(void);
++int             livepagecount(void);
++
++// swap.c
++void            swapinit(void);
++void            swapfree(struct swap*);
++struct swap*    swapalloc(void);
++void            swapout(struct swap *dst_sp, char *src_pa);
++void            swapin(char *dst_pa, struct swap *src_sp);
+ 
+ // swtch.S
+ void            swtch(struct context*, struct context*);
+diff --git a/kernel/fs.c b/kernel/fs.c
+index c6bab15..2d9b419 100644
+--- a/kernel/fs.c
++++ b/kernel/fs.c
+@@ -62,7 +62,7 @@ bzero(int dev, int bno)
+ 
+ // Allocate a zeroed disk block.
+ // returns 0 if out of disk space.
+-static uint
++uint
+ balloc(uint dev)
+ {
+   int b, bi, m;
+@@ -88,7 +88,7 @@ balloc(uint dev)
+ }
+ 
+ // Free a disk block.
+-static void
++void
+ bfree(int dev, uint b)
+ {
+   struct buf *bp;
+diff --git a/kernel/proc.c b/kernel/proc.c
+index 959b778..18ccb20 100644
+--- a/kernel/proc.c
++++ b/kernel/proc.c
+@@ -681,3 +681,23 @@ procdump(void)
+     printf("\n");
+   }
+ }
++
++int
++livepagecount(void)
++{
++  int count = 0;
++  struct proc *p;
++  
++  for(p = proc ; p < &proc[NPROC]; p++)
++  {
++    pagetable_t pagetable = p->pagetable;
++    for(int idx=0;idx<512;idx++) {
++    pte_t pte = pagetable[idx];
++    if(pte) {
++      count++;
++    } 
++  }
++  }
++
++  return count;
++}
+diff --git a/kernel/swap.c b/kernel/swap.c
+new file mode 100644
+index 0000000..f33bf40
+--- /dev/null
++++ b/kernel/swap.c
+@@ -0,0 +1,135 @@
++#include "types.h"
++#include "riscv.h"
++#include "fs.h"
++#include "spinlock.h"
++#include "defs.h"
++#include "param.h"
++#include "sleeplock.h"
++#include "buf.h"
++
++#define NBLOCKPERPAGE (PGSIZE / BSIZE)
++
++struct swap {
++  uint blocknos[NBLOCKPERPAGE];
++};
++
++struct run {
++  struct run *next;
++};
++
++struct {
++  struct spinlock lock;
++  struct run *freelist;
++} swapmem;
++
++// Initialize swapmem
++void
++swapinit(void)
++{
++  initlock(&swapmem.lock, "swapmem");
++  swapmem.freelist = 0;
++}
++
++// Allocate one swap struct.
++// Returns a pointer to the swap struct.
++// Returns 0 if the memory cannot be allocated.
++struct swap *
++swapalloc(void)
++{
++  struct run *r;
++  struct swap *s;
++
++  acquire(&swapmem.lock);
++  r = swapmem.freelist;
++  if(!r){
++    release(&swapmem.lock);
++    char *mem = kalloc();
++    char *mem_end = mem + PGSIZE;
++    for(; mem + sizeof(struct swap) <= mem_end; mem += sizeof(struct swap)){
++      r = (struct run*)mem;
++
++      acquire(&swapmem.lock);
++      r->next = swapmem.freelist;
++      swapmem.freelist = r;
++      release(&swapmem.lock);
++    }
++    acquire(&swapmem.lock);
++    r = swapmem.freelist;
++  }
++  swapmem.freelist = r->next;
++  release(&swapmem.lock);
++  
++  s = (struct swap*)r;
++  if(s)
++    memset((char*)s->blocknos, 0, sizeof(s->blocknos)); // fill with zeros
++  
++  return s;
++}
++
++// Free the swap struct pointed by s, and the blocks
++// contained in s, which normally should have been returned
++// by a call to swapalloc() and swapout().
++void
++swapfree(struct swap *s)
++{
++  uint *blockno;
++  struct run *r;
++
++  if(!s)
++    panic("swapfree");
++  
++  begin_op();
++  for(blockno = s->blocknos; blockno < &s->blocknos[NBLOCKPERPAGE]; blockno++){
++    if(*blockno)
++      bfree(ROOTDEV, *blockno);
++  }
++  end_op();
++
++  r = (struct run*)s;
++
++  acquire(&swapmem.lock);
++  r->next = swapmem.freelist;
++  swapmem.freelist = r;
++  release(&swapmem.lock);
++}
++
++// Swap out a given physical page src_pa to disk.
++// The metadata for retriving src_pa will be saved
++// to dst_pa which normally should have been returned
++// by a call to swapalloc().
++void
++swapout(struct swap *dst_sp, char *src_pa)
++{
++  uint *blockno;
++  struct buf *bp;
++  
++  begin_op();
++  for(blockno = dst_sp->blocknos; blockno < &dst_sp->blocknos[NBLOCKPERPAGE]; blockno++, src_pa += BSIZE){
++    *blockno = balloc(ROOTDEV);
++    if(*blockno == 0)
++      panic("swapout");
++    bp = bread(ROOTDEV, *blockno);
++    memmove(bp->data, src_pa, BSIZE);
++    log_write(bp);
++    brelse(bp);
++  }
++  end_op();
++}
++
++// Swap in a page into dst_pa from disk using src_sp.
++// src_sp should normally be updated with metadata
++// for retriving the page by a call to swapout().
++void
++swapin(char *dst_pa, struct swap *src_sp)
++{
++  uint *blockno;
++  struct buf *bp;
++  
++  if(!dst_pa)
++    panic("swapin");
++  for(blockno = src_sp->blocknos; blockno < &src_sp->blocknos[NBLOCKPERPAGE]; blockno++, dst_pa += BSIZE){
++    bp = bread(ROOTDEV, *blockno);
++    memmove(dst_pa, bp->data, BSIZE);
++    brelse(bp);
++  }
++}
+diff --git a/kernel/syscall.c b/kernel/syscall.c
+index ed65409..f4e0dd6 100644
+--- a/kernel/syscall.c
++++ b/kernel/syscall.c
+@@ -101,6 +101,8 @@ extern uint64 sys_unlink(void);
+ extern uint64 sys_link(void);
+ extern uint64 sys_mkdir(void);
+ extern uint64 sys_close(void);
++extern uint64 sys_livepagecount(void);
++
+ 
+ // An array mapping syscall numbers from syscall.h
+ // to the function that handles the system call.
+@@ -126,6 +128,7 @@ static uint64 (*syscalls[])(void) = {
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_livepagecount]   sys_livepagecount,
+ };
+ 
+ void
+diff --git a/kernel/syscall.h b/kernel/syscall.h
+index bc5f356..2995eea 100644
+--- a/kernel/syscall.h
++++ b/kernel/syscall.h
+@@ -20,3 +20,4 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_livepagecount 22
+diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+index 1de184e..e09145d 100644
+--- a/kernel/sysproc.c
++++ b/kernel/sysproc.c
+@@ -89,3 +89,11 @@ sys_uptime(void)
+   release(&tickslock);
+   return xticks;
+ }
++
++uint64
++sys_livepagecount(void)
++{
++  uint64 num_of_live_page = livepagecount();
++  return num_of_live_page;
++}
++
+diff --git a/kernel/vm.c b/kernel/vm.c
+index 9f69783..7fb7e39 100644
+--- a/kernel/vm.c
++++ b/kernel/vm.c
+@@ -437,3 +437,65 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+     return -1;
+   }
+ }
++
++// int
++// livepagecount(void)
++// {
++//   int count = 0;
++//   // pde_t *pde;
++//   // pte_t *pte;
++//   // struct proc *curproc = myproc();
++//   // char *mem_end = (char*)curproc->sz;
++
++//   // for (char *va = (char*)PGROUNDDOWN(curproc->sz); va >= (char*)PGROUNDUP(curproc->sz - curproc->sz/2); va -= PGSIZE) {
++//   //   pde = &curproc->pml4[PML4(va)];
++//   //   if (*pde & PTE_P) {
++//   //     pte = (pte_t*)P2V(PTE_ADDR(*pde));
++//   //     if (pte[PTX(va)] & PTE_P) {
++//   //       count++;
++//   //     }
++//   //   }
++//   // }
++
++//   // pde_t *pgdir;
++//   // pte_t *pte;
++
++//   // for (pgdir = ptable.proc->pgdir; pgdir < &ptable.proc->pgdir[NPDENTRIES]; pgdir++) {
++//   //   if (*pgdir & PTE_V) {
++//   //     pte = (pte_t*)P2V(PTE_ADDR(*pgdir));
++//   //     for (int i = 0; i < NPTENTRIES; i++) {
++//   //       if (pte[i] & PTE_V && !(pte[i] & PTE_X)) {
++//   //         count++;
++//   //       }
++//   //     }
++//   //   }
++//   // }
++
++//   //struct proc *curproc = myproc();
++
++//   struct proc proc[NPROC];
++//   struct proc *p;
++  
++//   for(p = proc ; p < &proc[NPROC]; p++)
++//   {
++//     acquire(&p->lock);
++//     pagetable_t pagetable = p->pagetable;
++//     for(int level = 2; level > 0; level--) {
++//     pte_t *pte = &pagetable[PX(level, MAXVA)];
++//     if(*pte & ~PTE_X) {
++//       count++;
++//     } 
++//     release(&p->lock);
++//   }
++//   }
++//   //pagetable_t pagetable = kernel_pagetable; //kernel_pagetable;
++//   // for(int level = 2; level > 0; level--) {
++//   //   pte_t *pte = &pagetable[PX(level, MAXVA)];
++//   //   if(*pte & ~PTE_X) {
++//   //     count++;
++//   //   } 
++//   // }
++
++//   return count;
++// }
++
+diff --git a/user/testswap.c b/user/testswap.c
+new file mode 100644
+index 0000000..298e5cf
+--- /dev/null
++++ b/user/testswap.c
+@@ -0,0 +1,24 @@
++#include "kernel/param.h"
++#include "kernel/types.h"
++#include "kernel/riscv.h"
++#include "user/user.h"
++
++void
++testmem() {
++  printf("\n\t\t\tTesting PageTable\n");
++  printf("\nInitial Live page count: %d\n", livepagecount());
++
++  printf("Using up one more page.\nFreePages should reduce by that much!\n");
++  int pid = fork();
++  if(pid==0)
++    printf("\nCurrent Live page count: %d\n", livepagecount());
++}
++
++int
++main(int argc, char *argv[])
++{
++  printf("swaptest: start\n");
++  testmem();
++  printf("swaptest: done\n");
++  exit(0);
++}
+\ No newline at end of file
+diff --git a/user/user.h b/user/user.h
+index 4d398d5..5acc6cd 100644
+--- a/user/user.h
++++ b/user/user.h
+@@ -22,6 +22,7 @@ int getpid(void);
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int livepagecount(void);
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+diff --git a/user/usys.pl b/user/usys.pl
+index 01e426e..20f5a2f 100755
+--- a/user/usys.pl
++++ b/user/usys.pl
+@@ -36,3 +36,4 @@ entry("getpid");
+ entry("sbrk");
+ entry("sleep");
+ entry("uptime");
++entry("livepagecount");

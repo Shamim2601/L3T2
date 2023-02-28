@@ -12,7 +12,7 @@ set val(prop)         Propagation/TwoRayGround ;# radio-propagation model
 set val(ant)          Antenna/OmniAntenna      ;# Antenna type
 set val(ll)           LL                       ;# Link layer type
 set val(ifq)          Queue/DropTail/PriQueue  ;# Interface queue type
-set val(ifqlen)       50                       ;# max packet in ifq
+set val(ifqlen)       10                       ;# max packet in ifq
 set val(netif)        Phy/WirelessPhy/802_15_4 ;# network interface type
 set val(mac)          Mac/802_15_4             ;# MAC type
 set val(rp)           DSDV                     ;# ad-hoc routing protocol 

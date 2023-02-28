@@ -20,7 +20,7 @@ set cbr_type CBR
 set cbr_size            16 ;	#[lindex $argv 2]; #4,8,16,32,64
 set cbr_rate            11.0Mb; #0.256Mb
 
-set qLimit 40
+set queue_size 20
 
 set time_duration    	15 ;	#[lindex $argv 5] ;#50
 set start_time          1
@@ -136,7 +136,7 @@ for {set i 0} {$i < $num_node} {incr i} {
 
     if {$nodeColm != [expr $num_col-1]} {
         $ns_ duplex-link $node_($i) $node_($rightNode) 2Mb 10ms DropTail
-		$ns_ queue-limit $node_($i) $node_($rightNode) $qLimit
+		$ns_ queue-limit $node_($i) $node_($rightNode) $queue_size
 
 		# set qmon [$ns_ monitor-queue $node_($i) $node_($rightNode) $queue_trace_file 0.1]
 		# [$ns_ link $node_($i) $node_($rightNode)] queue-sample-timeout
@@ -144,7 +144,7 @@ for {set i 0} {$i < $num_node} {incr i} {
 
     if {$downNode < [expr $num_node-1]} {
         $ns_ duplex-link $node_($i) $node_($downNode) 2Mb 10ms DropTail
-		$ns_ queue-limit $node_($i) $node_($downNode) $qLimit
+		$ns_ queue-limit $node_($i) $node_($downNode) $queue_size
 
 		# set qmon [$ns_ monitor-queue $node_($i) $node_($downNode) $queue_trace_file 0.1]
 		# [$ns_ link $node_($i) $node_($downNode)] queue-sample-timeout
